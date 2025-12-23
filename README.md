@@ -41,6 +41,16 @@ The server expects `spotify_clean_track_files.sqlite3` to be in the same directo
 - `-db` - Path to `spotify_clean.sqlite3` (required)
 - `-addr` - Listen address (default: `:8080`)
 
+## Docker
+
+```bash
+# Build
+docker build -t metadata-api .
+
+# Run (mount your database directory)
+docker run -p 8080:8080 -v /path/to/databases:/data metadata-api -db /data/spotify_clean.sqlite3
+```
+
 ## API Endpoints
 
 | Endpoint | Description |
