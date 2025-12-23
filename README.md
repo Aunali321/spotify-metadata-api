@@ -39,7 +39,7 @@ The server expects `spotify_clean_track_files.sqlite3` to be in the same directo
 
 **Flags:**
 - `-db` - Path to `spotify_clean.sqlite3` (required)
-- `-addr` - Listen address (default: `:8080`)
+- `-addr` - Listen address (default: `:8000`)
 
 ## Docker
 
@@ -48,7 +48,7 @@ The server expects `spotify_clean_track_files.sqlite3` to be in the same directo
 docker build -t metadata-api .
 
 # Run (mount your database directory)
-docker run -p 8080:8080 -v /path/to/databases:/data metadata-api -db /data/spotify_clean.sqlite3
+docker run -p 8000:8000 -v /path/to/databases:/data metadata-api -db /data/spotify_clean.sqlite3
 ```
 
 ## API Endpoints
@@ -70,10 +70,10 @@ docker run -p 8080:8080 -v /path/to/databases:/data metadata-api -db /data/spoti
 
 ```bash
 # Lookup by ISRC
-curl http://localhost:8080/lookup/isrc/USUM72409273 | jq '.[0]'
+curl http://localhost:8000/lookup/isrc/USUM72409273 | jq '.[0]'
 
 # Search
-curl "http://localhost:8080/search/track?q=Bohemian%20Rhapsody&limit=5"
+curl "http://localhost:8000/search/track?q=Bohemian%20Rhapsody&limit=5"
 ```
 
 ## Response Format
