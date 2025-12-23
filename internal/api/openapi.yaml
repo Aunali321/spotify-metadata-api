@@ -1,0 +1,329 @@
+openapi: 3.1.0
+info:
+  title: Spotify Metadata API
+  description: Metadata enrichment API backed by Anna's Archive Spotify database (256M tracks)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+
+paths:
+  /lookup/isrc/{isrc}:
+    get:
+      summary: Lookup tracks by ISRC
+      description: Returns all tracks matching the given ISRC, sorted by popularity
+      tags: [Lookup]
+      parameters:
+        - name: isrc
+          in: path
+          required: true
+          schema:
+            type: string
+          example: USUM72409273
+      responses:
+        '200':
+          description: List of tracks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Track'
+
+  /lookup/track/{id}:
+    get:
+      summary: Lookup track by Spotify ID
+      tags: [Lookup]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 2plbrEY59IikOBgBGLjaoe
+      responses:
+        '200':
+          description: Track details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+        '404':
+          description: Track not found
+
+  /lookup/artist/{id}:
+    get:
+      summary: Lookup artist by Spotify ID
+      tags: [Lookup]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 1HY2Jd0NmPuamShAr6KMms
+      responses:
+        '200':
+          description: Artist details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Artist'
+        '404':
+          description: Artist not found
+
+  /lookup/album/{id}:
+    get:
+      summary: Lookup album by Spotify ID
+      tags: [Lookup]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 10FLjwfpbxLmW8c25Xyc2N
+      responses:
+        '200':
+          description: Album details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Album'
+        '404':
+          description: Album not found
+
+  /lookup/album/{id}/tracks:
+    get:
+      summary: Get all tracks in an album
+      tags: [Lookup]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 10FLjwfpbxLmW8c25Xyc2N
+      responses:
+        '200':
+          description: List of tracks in album
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Track'
+
+  /search/track:
+    get:
+      summary: Search tracks by name
+      tags: [Search]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          example: Bohemian Rhapsody
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        '200':
+          description: List of matching tracks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Track'
+
+  /search/artist:
+    get:
+      summary: Search artists by name
+      tags: [Search]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          example: Lady Gaga
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        '200':
+          description: List of matching artists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Artist'
+
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+components:
+  schemas:
+    Image:
+      type: object
+      properties:
+        url:
+          type: string
+          example: https://i.scdn.co/image/ab67616d0000b27382ea2e9e1858aa012c57cd45
+        width:
+          type: integer
+          example: 640
+        height:
+          type: integer
+          example: 640
+
+    Artist:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 1HY2Jd0NmPuamShAr6KMms
+        name:
+          type: string
+          example: Lady Gaga
+        followers:
+          type: integer
+          example: 36284092
+        popularity:
+          type: integer
+          example: 94
+        genres:
+          type: array
+          items:
+            type: string
+          example: ["art pop", "pop"]
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+
+    Album:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 10FLjwfpbxLmW8c25Xyc2N
+        name:
+          type: string
+          example: Die With A Smile
+        type:
+          type: string
+          enum: [album, single, compilation]
+          example: single
+        label:
+          type: string
+          example: Interscope
+        release_date:
+          type: string
+          example: "2024-08-16"
+        release_date_precision:
+          type: string
+          enum: [year, month, day]
+          example: day
+        upc:
+          type: string
+          example: "00602475093060"
+        total_tracks:
+          type: integer
+          example: 1
+        copyright:
+          type: string
+          example: "© 2024 Interscope Records"
+        copyright_p:
+          type: string
+          example: "℗ 2024 Interscope Records"
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+        artists:
+          type: array
+          items:
+            $ref: '#/components/schemas/Artist'
+
+    Track:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 2plbrEY59IikOBgBGLjaoe
+        name:
+          type: string
+          example: Die With A Smile
+        isrc:
+          type: string
+          example: USUM72409273
+        duration_ms:
+          type: integer
+          example: 251667
+        explicit:
+          type: boolean
+          example: false
+        track_number:
+          type: integer
+          example: 1
+        disc_number:
+          type: integer
+          example: 1
+        popularity:
+          type: integer
+          example: 100
+        preview_url:
+          type: string
+          nullable: true
+        album:
+          $ref: '#/components/schemas/Album'
+        artists:
+          type: array
+          items:
+            $ref: '#/components/schemas/Artist'
+        original_title:
+          type: string
+          nullable: true
+        version_title:
+          type: string
+          nullable: true
+          example: "Remastered 2011"
+        has_lyrics:
+          type: boolean
+          nullable: true
+        languages:
+          type: array
+          items:
+            type: string
+          example: ["en"]
+        artist_roles:
+          type: array
+          items:
+            type: string
+

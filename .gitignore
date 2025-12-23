@@ -1,0 +1,19 @@
+# Binary
+metadata-api
+
+# SQLite databases
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage.out
+
