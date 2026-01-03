@@ -1,7 +1,23 @@
 openapi: 3.1.0
 info:
   title: Spotify Metadata API
-  description: Metadata enrichment API backed by Anna's Archive Spotify database (256M tracks)
+  description: |
+    Metadata enrichment API backed by Anna's Archive Spotify database (256M tracks)
+    
+    ## Rate Limits
+    
+    This API has generous rate limits to support high-volume usage:
+    - **100 requests per second** per IP address
+    - **Burst capacity of 200 requests** for handling traffic spikes
+    - Rate limit applies across all endpoints
+    - HTTP 429 (Too Many Requests) returned when limit exceeded
+    
+    ## Batch API
+    
+    Use the `/batch/lookup` endpoint to retrieve multiple entities in a single request:
+    - Maximum 400 total items per request
+    - Significantly more efficient than individual lookups
+    - Ideal for bulk data enrichment workflows
   version: 1.0.0
 
 servers:
@@ -9,6 +25,82 @@ servers:
     description: Local development
 
 paths:
+  /batch/lookup:
+    post:
+      summary: Batch lookup multiple entities
+      description: Lookup multiple tracks, artists, albums, and ISRCs in a single request
+      tags: [Batch]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tracks:
+                  type: array
+                  items:
+                    type: string
+                  description: Spotify track IDs to lookup
+                  example: ["2plbrEY59IikOBgBGLjaoe", "3n3Ppam7vgaVa1iaRUc9Lp"]
+                artists:
+                  type: array
+                  items:
+                    type: string
+                  description: Spotify artist IDs to lookup
+                  example: ["1HY2Jd0NmPuamShAr6KMms"]
+                albums:
+                  type: array
+                  items:
+                    type: string
+                  description: Spotify album IDs to lookup
+                  example: ["10FLjwfpbxLmW8c25Xyc2N"]
+                isrcs:
+                  type: array
+                  items:
+                    type: string
+                  description: ISRCs to lookup
+                  example: ["USUM72409273"]
+      responses:
+        '200':
+          description: Batch lookup results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tracks:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/Track'
+                    description: Map of track ID to track details
+                  artists:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/Artist'
+                    description: Map of artist ID to artist details
+                  albums:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/Album'
+                    description: Map of album ID to album details
+                  isrcs:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Track'
+                    description: Map of ISRC to matching tracks
+                  errors:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    description: Any errors that occurred during batch processing
+        '400':
+          description: Invalid request (exceeds limits or malformed)
+        '429':
+          description: Rate limit exceeded
+
   /lookup/isrc/{isrc}:
     get:
       summary: Lookup tracks by ISRC

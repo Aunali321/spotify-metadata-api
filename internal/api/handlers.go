@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"metadata-api/internal/db"
+	"metadata-api/internal/models"
 )
 
 //go:embed openapi.yaml
@@ -24,6 +25,7 @@ func New(database *db.DB) *Handler {
 func (h *Handler) Routes() *http.ServeMux {
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("POST /batch/lookup", h.batchLookup)
 	mux.HandleFunc("GET /lookup/isrc/{isrc}", h.lookupISRC)
 	mux.HandleFunc("GET /lookup/track/{id}", h.lookupTrack)
 	mux.HandleFunc("GET /lookup/artist/{id}", h.lookupArtist)
@@ -224,6 +226,72 @@ func (h *Handler) searchTrack(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) batchLookup(w http.ResponseWriter, r *http.Request) {
+	var req models.BatchLookupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate request limits (max 100 items per type)
+	totalItems := len(req.Tracks) + len(req.Artists) + len(req.Albums) + len(req.ISRCs)
+	if totalItems == 0 {
+		http.Error(w, "at least one lookup type required", http.StatusBadRequest)
+		return
+	}
+	if totalItems > 400 {
+		http.Error(w, "maximum 400 total items allowed", http.StatusBadRequest)
+		return
+	}
+
+	resp := models.BatchLookupResponse{
+		Errors: make(map[string]string),
+	}
+
+	if len(req.Tracks) > 0 {
+		tracks, err := h.db.BatchLookupTracks(r.Context(), req.Tracks)
+		if err != nil {
+			slog.Error("batch lookup tracks", "err", err)
+			resp.Errors["tracks"] = "failed to lookup some tracks"
+		}
+		resp.Tracks = tracks
+	}
+
+	if len(req.Artists) > 0 {
+		artists, err := h.db.BatchLookupArtists(r.Context(), req.Artists)
+		if err != nil {
+			slog.Error("batch lookup artists", "err", err)
+			resp.Errors["artists"] = "failed to lookup some artists"
+		}
+		resp.Artists = artists
+	}
+
+	if len(req.Albums) > 0 {
+		albums, err := h.db.BatchLookupAlbums(r.Context(), req.Albums)
+		if err != nil {
+			slog.Error("batch lookup albums", "err", err)
+			resp.Errors["albums"] = "failed to lookup some albums"
+		}
+		resp.Albums = albums
+	}
+
+	if len(req.ISRCs) > 0 {
+		isrcs, err := h.db.BatchLookupISRCs(r.Context(), req.ISRCs)
+		if err != nil {
+			slog.Error("batch lookup isrcs", "err", err)
+			resp.Errors["isrcs"] = "failed to lookup some isrcs"
+		}
+		resp.ISRCs = isrcs
+	}
+
+	// Remove errors field if empty
+	if len(resp.Errors) == 0 {
+		resp.Errors = nil
+	}
+
+	writeJSON(w, resp)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

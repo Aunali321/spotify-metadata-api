@@ -48,3 +48,18 @@ type Track struct {
 	Languages     []string `json:"languages,omitempty"`
 	ArtistRoles   []string `json:"artist_roles,omitempty"`
 }
+
+type BatchLookupRequest struct {
+	Tracks  []string `json:"tracks,omitempty"`  // Spotify track IDs
+	Artists []string `json:"artists,omitempty"` // Spotify artist IDs
+	Albums  []string `json:"albums,omitempty"`  // Spotify album IDs
+	ISRCs   []string `json:"isrcs,omitempty"`   // ISRCs
+}
+
+type BatchLookupResponse struct {
+	Tracks  map[string]*Track  `json:"tracks,omitempty"`
+	Artists map[string]*Artist `json:"artists,omitempty"`
+	Albums  map[string]*Album  `json:"albums,omitempty"`
+	ISRCs   map[string][]Track `json:"isrcs,omitempty"`
+	Errors  map[string]string  `json:"errors,omitempty"`
+}

@@ -34,9 +34,11 @@ func main() {
 	defer database.Close()
 
 	handler := api.New(database)
+	rateLimiter := api.NewRateLimiter(100, 200)
+
 	srv := &http.Server{
 		Addr:         *addr,
-		Handler:      handler.Routes(),
+		Handler:      rateLimiter.Middleware(handler.Routes()),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 	}
@@ -58,4 +60,3 @@ func main() {
 	defer cancel()
 	srv.Shutdown(ctx)
 }
-

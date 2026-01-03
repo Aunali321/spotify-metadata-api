@@ -44,7 +44,7 @@ func (d *DB) Close() error {
 
 func (d *DB) LookupISRC(ctx context.Context, isrc string) ([]models.Track, error) {
 	rows, err := d.main.QueryContext(ctx, `
-		SELECT t.id, t.name, t.external_id_isrc, t.duration_ms, t.explicit, 
+		SELECT t.id, t.name, t.external_id_isrc, t.duration_ms, t.explicit,
 		       t.track_number, t.disc_number, t.popularity, t.preview_url,
 		       a.id, a.name, a.album_type, a.label, a.release_date, a.release_date_precision,
 		       a.external_id_upc, a.total_tracks, a.copyright_c, a.copyright_p, a.rowid
@@ -389,7 +389,7 @@ func (d *DB) getArtistGenres(ctx context.Context, artistRowID int64) ([]string, 
 
 func (d *DB) getAlbumImages(ctx context.Context, albumRowID int64) ([]models.Image, error) {
 	rows, err := d.main.QueryContext(ctx, `
-		SELECT DISTINCT url, width, height FROM album_images 
+		SELECT DISTINCT url, width, height FROM album_images
 		WHERE album_rowid = ? ORDER BY width DESC
 	`, albumRowID)
 	if err != nil {
@@ -410,7 +410,7 @@ func (d *DB) getAlbumImages(ctx context.Context, albumRowID int64) ([]models.Ima
 
 func (d *DB) getArtistImages(ctx context.Context, artistRowID int64) ([]models.Image, error) {
 	rows, err := d.main.QueryContext(ctx, `
-		SELECT url, width, height FROM artist_images 
+		SELECT url, width, height FROM artist_images
 		WHERE artist_rowid = ? ORDER BY width DESC
 	`, artistRowID)
 	if err != nil {
@@ -427,4 +427,72 @@ func (d *DB) getArtistImages(ctx context.Context, artistRowID int64) ([]models.I
 		images = append(images, img)
 	}
 	return images, rows.Err()
+}
+
+func (d *DB) BatchLookupTracks(ctx context.Context, ids []string) (map[string]*models.Track, error) {
+	result := make(map[string]*models.Track)
+
+	for _, id := range ids {
+		track, err := d.LookupTrack(ctx, id)
+		if err != nil {
+			slog.Error("batch lookup track", "id", id, "err", err)
+			continue
+		}
+		if track != nil {
+			result[id] = track
+		}
+	}
+
+	return result, nil
+}
+
+func (d *DB) BatchLookupArtists(ctx context.Context, ids []string) (map[string]*models.Artist, error) {
+	result := make(map[string]*models.Artist)
+
+	for _, id := range ids {
+		artist, err := d.LookupArtist(ctx, id)
+		if err != nil {
+			slog.Error("batch lookup artist", "id", id, "err", err)
+			continue
+		}
+		if artist != nil {
+			result[id] = artist
+		}
+	}
+
+	return result, nil
+}
+
+func (d *DB) BatchLookupAlbums(ctx context.Context, ids []string) (map[string]*models.Album, error) {
+	result := make(map[string]*models.Album)
+
+	for _, id := range ids {
+		album, err := d.LookupAlbum(ctx, id)
+		if err != nil {
+			slog.Error("batch lookup album", "id", id, "err", err)
+			continue
+		}
+		if album != nil {
+			result[id] = album
+		}
+	}
+
+	return result, nil
+}
+
+func (d *DB) BatchLookupISRCs(ctx context.Context, isrcs []string) (map[string][]models.Track, error) {
+	result := make(map[string][]models.Track)
+
+	for _, isrc := range isrcs {
+		tracks, err := d.LookupISRC(ctx, isrc)
+		if err != nil {
+			slog.Error("batch lookup isrc", "isrc", isrc, "err", err)
+			continue
+		}
+		if len(tracks) > 0 {
+			result[isrc] = tracks
+		}
+	}
+
+	return result, nil
 }

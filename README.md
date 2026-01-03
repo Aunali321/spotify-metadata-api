@@ -10,6 +10,8 @@ The author(s) of this project are not responsible for how you obtain or use the 
 
 ## Features
 
+- **Batch API** - Lookup up to 400 entities in a single request
+- **Generous rate limits** - 100 req/s with burst capacity of 200
 - ISRC lookup (primary identifier for recordings)
 - Track/Artist/Album lookup by Spotify ID
 - Search by name
@@ -55,6 +57,7 @@ docker run -p 8000:8000 -v /path/to/databases:/data metadata-api -db /data/spoti
 
 | Endpoint | Description |
 |----------|-------------|
+| `POST /batch/lookup` | **Batch lookup multiple entities** |
 | `GET /lookup/isrc/{isrc}` | Lookup tracks by ISRC |
 | `GET /lookup/track/{id}` | Lookup track by Spotify ID |
 | `GET /lookup/artist/{id}` | Lookup artist by Spotify ID |
@@ -66,17 +69,73 @@ docker run -p 8000:8000 -v /path/to/databases:/data metadata-api -db /data/spoti
 | `GET /docs` | Swagger UI |
 | `GET /openapi.yaml` | OpenAPI spec |
 
-## Example
+## Rate Limits
+
+This API has generous rate limits designed for high-volume usage:
+
+- **100 requests per second** per IP address
+- **Burst capacity of 200 requests** for handling traffic spikes
+- Rate limits apply across all endpoints
+- Returns HTTP 429 when exceeded
+
+### Throughput Examples
+
+**Individual endpoints:**
+- 6,000 entities per minute (100 req/s × 60s)
+
+**Batch API:**
+- Up to 600,000 entities per minute (100 req/s × 100 items × 60s)
+- Maximum 400 total items per batch request
+- Can mix tracks, artists, albums, and ISRCs in single request
+
+## Examples
+
+### Individual Lookups
 
 ```bash
 # Lookup by ISRC
 curl http://localhost:8000/lookup/isrc/USUM72409273 | jq '.[0]'
 
+# Lookup track by ID
+curl http://localhost:8000/lookup/track/2plbrEY59IikOBgBGLjaoe
+
 # Search
 curl "http://localhost:8000/search/track?q=Bohemian%20Rhapsody&limit=5"
 ```
 
-## Response Format
+### Batch Lookup (Recommended for bulk operations)
+
+```bash
+curl -X POST http://localhost:8000/batch/lookup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tracks": ["2plbrEY59IikOBgBGLjaoe", "3n3Ppam7vgaVa1iaRUc9Lp"],
+    "artists": ["1HY2Jd0NmPuamShAr6KMms"],
+    "albums": ["10FLjwfpbxLmW8c25Xyc2N"],
+    "isrcs": ["USUM72409273"]
+  }'
+```
+
+**Batch Response Format:**
+```json
+{
+  "tracks": {
+    "2plbrEY59IikOBgBGLjaoe": { "id": "2plbrEY59IikOBgBGLjaoe", "name": "Die With A Smile", ... },
+    "3n3Ppam7vgaVa1iaRUc9Lp": { ... }
+  },
+  "artists": {
+    "1HY2Jd0NmPuamShAr6KMms": { "id": "1HY2Jd0NmPuamShAr6KMms", "name": "Lady Gaga", ... }
+  },
+  "albums": {
+    "10FLjwfpbxLmW8c25Xyc2N": { ... }
+  },
+  "isrcs": {
+    "USUM72409273": [ { "id": "2plbrEY59IikOBgBGLjaoe", ... } ]
+  }
+}
+```
+
+## Individual Response Format
 
 ```json
 {
