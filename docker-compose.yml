@@ -1,6 +1,6 @@
 services:
   metadata-api:
-    image: ghcr.io/aunali321/metadata-api:latest
+    image: ghcr.io/aunali321/spotify-metadata-api:latest
     # build: .  # Uncomment to build locally instead
     container_name: metadata-api
     restart: unless-stopped
