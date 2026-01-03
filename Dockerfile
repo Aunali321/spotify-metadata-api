@@ -15,7 +15,6 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/metadata-api .
 
-EXPOSE 8000
+EXPOSE 8080
 
 ENTRYPOINT ["/app/metadata-api"]
-

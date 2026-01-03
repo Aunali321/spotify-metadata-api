@@ -3,17 +3,17 @@ info:
   title: Spotify Metadata API
   description: |
     Metadata enrichment API backed by Anna's Archive Spotify database (256M tracks)
-    
+
     ## Rate Limits
-    
+
     This API has generous rate limits to support high-volume usage:
     - **100 requests per second** per IP address
     - **Burst capacity of 200 requests** for handling traffic spikes
     - Rate limit applies across all endpoints
     - HTTP 429 (Too Many Requests) returned when limit exceeded
-    
+
     ## Batch API
-    
+
     Use the `/batch/lookup` endpoint to retrieve multiple entities in a single request:
     - Maximum 400 total items per request
     - Significantly more efficient than individual lookups
@@ -21,7 +21,7 @@ info:
   version: 1.0.0
 
 servers:
-  - url: http://localhost:8000
+  - url: http://localhost:8080
     description: Local development
 
 paths:
@@ -62,7 +62,7 @@ paths:
                   description: ISRCs to lookup
                   example: ["USUM72409273"]
       responses:
-        '200':
+        "200":
           description: Batch lookup results
           content:
             application/json:
@@ -72,33 +72,33 @@ paths:
                   tracks:
                     type: object
                     additionalProperties:
-                      $ref: '#/components/schemas/Track'
+                      $ref: "#/components/schemas/Track"
                     description: Map of track ID to track details
                   artists:
                     type: object
                     additionalProperties:
-                      $ref: '#/components/schemas/Artist'
+                      $ref: "#/components/schemas/Artist"
                     description: Map of artist ID to artist details
                   albums:
                     type: object
                     additionalProperties:
-                      $ref: '#/components/schemas/Album'
+                      $ref: "#/components/schemas/Album"
                     description: Map of album ID to album details
                   isrcs:
                     type: object
                     additionalProperties:
                       type: array
                       items:
-                        $ref: '#/components/schemas/Track'
+                        $ref: "#/components/schemas/Track"
                     description: Map of ISRC to matching tracks
                   errors:
                     type: object
                     additionalProperties:
                       type: string
                     description: Any errors that occurred during batch processing
-        '400':
+        "400":
           description: Invalid request (exceeds limits or malformed)
-        '429':
+        "429":
           description: Rate limit exceeded
 
   /lookup/isrc/{isrc}:
@@ -114,14 +114,14 @@ paths:
             type: string
           example: USUM72409273
       responses:
-        '200':
+        "200":
           description: List of tracks
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Track'
+                  $ref: "#/components/schemas/Track"
 
   /lookup/track/{id}:
     get:
@@ -135,13 +135,13 @@ paths:
             type: string
           example: 2plbrEY59IikOBgBGLjaoe
       responses:
-        '200':
+        "200":
           description: Track details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Track'
-        '404':
+                $ref: "#/components/schemas/Track"
+        "404":
           description: Track not found
 
   /lookup/artist/{id}:
@@ -156,13 +156,13 @@ paths:
             type: string
           example: 1HY2Jd0NmPuamShAr6KMms
       responses:
-        '200':
+        "200":
           description: Artist details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Artist'
-        '404':
+                $ref: "#/components/schemas/Artist"
+        "404":
           description: Artist not found
 
   /lookup/album/{id}:
@@ -177,13 +177,13 @@ paths:
             type: string
           example: 10FLjwfpbxLmW8c25Xyc2N
       responses:
-        '200':
+        "200":
           description: Album details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Album'
-        '404':
+                $ref: "#/components/schemas/Album"
+        "404":
           description: Album not found
 
   /lookup/album/{id}/tracks:
@@ -198,14 +198,14 @@ paths:
             type: string
           example: 10FLjwfpbxLmW8c25Xyc2N
       responses:
-        '200':
+        "200":
           description: List of tracks in album
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Track'
+                  $ref: "#/components/schemas/Track"
 
   /search/track:
     get:
@@ -226,14 +226,14 @@ paths:
             default: 20
             maximum: 50
       responses:
-        '200':
+        "200":
           description: List of matching tracks
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Track'
+                  $ref: "#/components/schemas/Track"
 
   /search/artist:
     get:
@@ -254,21 +254,21 @@ paths:
             default: 20
             maximum: 50
       responses:
-        '200':
+        "200":
           description: List of matching artists
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Artist'
+                  $ref: "#/components/schemas/Artist"
 
   /health:
     get:
       summary: Health check
       tags: [System]
       responses:
-        '200':
+        "200":
           description: Service is healthy
           content:
             application/json:
@@ -317,7 +317,7 @@ components:
         images:
           type: array
           items:
-            $ref: '#/components/schemas/Image'
+            $ref: "#/components/schemas/Image"
 
     Album:
       type: object
@@ -357,11 +357,11 @@ components:
         images:
           type: array
           items:
-            $ref: '#/components/schemas/Image'
+            $ref: "#/components/schemas/Image"
         artists:
           type: array
           items:
-            $ref: '#/components/schemas/Artist'
+            $ref: "#/components/schemas/Artist"
 
     Track:
       type: object
@@ -394,11 +394,11 @@ components:
           type: string
           nullable: true
         album:
-          $ref: '#/components/schemas/Album'
+          $ref: "#/components/schemas/Album"
         artists:
           type: array
           items:
-            $ref: '#/components/schemas/Artist'
+            $ref: "#/components/schemas/Artist"
         original_title:
           type: string
           nullable: true
@@ -418,4 +418,3 @@ components:
           type: array
           items:
             type: string
-

@@ -41,7 +41,7 @@ The server expects `spotify_clean_track_files.sqlite3` to be in the same directo
 
 **Flags:**
 - `-db` - Path to `spotify_clean.sqlite3` (required)
-- `-addr` - Listen address (default: `:8000`)
+- `-addr` - Listen address (default: `:8080`)
 
 ## Docker
 
@@ -50,7 +50,7 @@ The server expects `spotify_clean_track_files.sqlite3` to be in the same directo
 docker build -t metadata-api .
 
 # Run (mount your database directory)
-docker run -p 8000:8000 -v /path/to/databases:/data metadata-api -db /data/spotify_clean.sqlite3
+docker run -p 8080:8080 -v /path/to/databases:/data metadata-api -db /data/spotify_clean.sqlite3
 ```
 
 ## API Endpoints
@@ -94,19 +94,19 @@ This API has generous rate limits designed for high-volume usage:
 
 ```bash
 # Lookup by ISRC
-curl http://localhost:8000/lookup/isrc/USUM72409273 | jq '.[0]'
+curl http://localhost:8080/lookup/isrc/USUM72409273 | jq '.[0]'
 
 # Lookup track by ID
-curl http://localhost:8000/lookup/track/2plbrEY59IikOBgBGLjaoe
+curl http://localhost:8080/lookup/track/2plbrEY59IikOBgBGLjaoe
 
 # Search
-curl "http://localhost:8000/search/track?q=Bohemian%20Rhapsody&limit=5"
+curl "http://localhost:8080/search/track?q=Bohemian%20Rhapsody&limit=5"
 ```
 
 ### Batch Lookup (Recommended for bulk operations)
 
 ```bash
-curl -X POST http://localhost:8000/batch/lookup \
+curl -X POST http://localhost:8080/batch/lookup \
   -H "Content-Type: application/json" \
   -d '{
     "tracks": ["2plbrEY59IikOBgBGLjaoe", "3n3Ppam7vgaVa1iaRUc9Lp"],
@@ -168,4 +168,3 @@ curl -X POST http://localhost:8000/batch/lookup \
 ## License
 
 MIT
-
