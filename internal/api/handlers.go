@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"metadata-api/internal/db"
 	"metadata-api/internal/models"
@@ -183,6 +185,12 @@ func (h *Handler) searchArtist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate minimum query length to prevent expensive searches
+	if len(q) < 2 {
+		http.Error(w, "query must be at least 2 characters", http.StatusBadRequest)
+		return
+	}
+
 	limit := 20
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil {
@@ -190,8 +198,16 @@ func (h *Handler) searchArtist(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	artists, err := h.db.SearchArtist(r.Context(), q, limit)
+	// Add timeout for search queries
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	artists, err := h.db.SearchArtist(ctx, q, limit)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			http.Error(w, "search timeout - try a more specific query", http.StatusRequestTimeout)
+			return
+		}
 		slog.Error("search artist", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -207,6 +223,12 @@ func (h *Handler) searchTrack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate minimum query length to prevent expensive searches
+	if len(q) < 2 {
+		http.Error(w, "query must be at least 2 characters", http.StatusBadRequest)
+		return
+	}
+
 	limit := 20
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil {
@@ -214,8 +236,16 @@ func (h *Handler) searchTrack(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tracks, err := h.db.SearchTrack(r.Context(), q, limit)
+	// Add timeout for search queries
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	tracks, err := h.db.SearchTrack(ctx, q, limit)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			http.Error(w, "search timeout - try a more specific query", http.StatusRequestTimeout)
+			return
+		}
 		slog.Error("search track", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

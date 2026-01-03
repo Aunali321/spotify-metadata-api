@@ -89,11 +89,22 @@ docker run -p 8080:8080 -v /path/to/databases:/data metadata-api -db /data/spoti
 | `GET /lookup/artist/{id}` | Lookup artist by Spotify ID |
 | `GET /lookup/album/{id}` | Lookup album by Spotify ID |
 | `GET /lookup/album/{id}/tracks` | Get all tracks in album |
-| `GET /search/track?q=&limit=` | Search tracks by name |
-| `GET /search/artist?q=&limit=` | Search artists by name |
+| `GET /search/track?q=&limit=` | Search tracks by name (case-insensitive) |
+| `GET /search/artist?q=&limit=` | Search artists by name (case-insensitive) |
 | `GET /health` | Health check |
 | `GET /docs` | Swagger UI |
 | `GET /openapi.yaml` | OpenAPI spec |
+
+### Search Behavior
+
+Search endpoints use **case-insensitive substring matching**:
+- ✅ `q=gaga` matches "Lady Gaga"
+- ✅ `q=Bohemian` matches "Bohemian Rhapsody"
+- ✅ `q=lady` matches "Lady Gaga", "Lady Antebellum"
+- Minimum 2 characters required
+- 10-second timeout for protection
+- Results ordered by popularity/followers
+- Default limit: 20, max: 50
 
 ## Rate Limits
 

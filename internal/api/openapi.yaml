@@ -210,6 +210,7 @@ paths:
   /search/track:
     get:
       summary: Search tracks by name
+      description: Case-insensitive substring search. Minimum 2 characters required. Times out after 10 seconds.
       tags: [Search]
       parameters:
         - name: q
@@ -217,6 +218,7 @@ paths:
           required: true
           schema:
             type: string
+            minLength: 2
           example: Bohemian Rhapsody
         - name: limit
           in: query
@@ -234,10 +236,15 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Track"
+        "400":
+          description: Invalid query (too short or missing)
+        "408":
+          description: Search timeout - try a more specific query
 
   /search/artist:
     get:
       summary: Search artists by name
+      description: Case-insensitive substring search. Minimum 2 characters required. Times out after 10 seconds.
       tags: [Search]
       parameters:
         - name: q
@@ -245,6 +252,7 @@ paths:
           required: true
           schema:
             type: string
+            minLength: 2
           example: Lady Gaga
         - name: limit
           in: query
@@ -262,6 +270,10 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Artist"
+        "400":
+          description: Invalid query (too short or missing)
+        "408":
+          description: Search timeout - query too broad
 
   /health:
     get:

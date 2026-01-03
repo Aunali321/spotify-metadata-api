@@ -257,9 +257,10 @@ func (d *DB) SearchArtist(ctx context.Context, query string, limit int) ([]model
 		limit = 20
 	}
 
+	// Use case-insensitive substring search with LIMIT for safety
 	rows, err := d.main.QueryContext(ctx, `
 		SELECT id, name, followers_total, popularity, rowid FROM artists
-		WHERE name LIKE ?
+		WHERE name LIKE ? COLLATE NOCASE
 		ORDER BY followers_total DESC
 		LIMIT ?
 	`, "%"+query+"%", limit)
@@ -287,6 +288,7 @@ func (d *DB) SearchTrack(ctx context.Context, query string, limit int) ([]models
 		limit = 20
 	}
 
+	// Use case-insensitive substring search with LIMIT for safety
 	rows, err := d.main.QueryContext(ctx, `
 		SELECT t.id, t.name, t.external_id_isrc, t.duration_ms, t.explicit,
 		       t.track_number, t.disc_number, t.popularity, t.preview_url,
@@ -294,7 +296,7 @@ func (d *DB) SearchTrack(ctx context.Context, query string, limit int) ([]models
 		       a.external_id_upc, a.total_tracks, a.copyright_c, a.copyright_p, a.rowid
 		FROM tracks t
 		JOIN albums a ON t.album_rowid = a.rowid
-		WHERE t.name LIKE ?
+		WHERE t.name LIKE ? COLLATE NOCASE
 		ORDER BY t.popularity DESC
 		LIMIT ?
 	`, "%"+query+"%", limit)
@@ -335,6 +337,7 @@ func (d *DB) getTrackArtists(ctx context.Context, trackID string) ([]models.Arti
 			return nil, fmt.Errorf("scan artist: %w", err)
 		}
 		a.Genres, _ = d.getArtistGenres(ctx, rowid)
+		a.Images, _ = d.getArtistImages(ctx, rowid)
 		artists = append(artists, a)
 	}
 	return artists, rows.Err()
@@ -362,6 +365,8 @@ func (d *DB) getAlbumArtists(ctx context.Context, albumRowID int64) ([]models.Ar
 		if err := rows.Scan(&a.ID, &a.Name, &a.Followers, &a.Popularity, &rowid, &idx); err != nil {
 			return nil, fmt.Errorf("scan artist: %w", err)
 		}
+		a.Genres, _ = d.getArtistGenres(ctx, rowid)
+		a.Images, _ = d.getArtistImages(ctx, rowid)
 		artists = append(artists, a)
 	}
 	return artists, rows.Err()
