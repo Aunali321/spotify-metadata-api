@@ -45,6 +45,32 @@ The server expects `spotify_clean_track_files.sqlite3` to be in the same directo
 
 ## Docker
 
+### Using Pre-built Image (Recommended)
+
+```bash
+docker run -p 8080:8080 \
+  -v /path/to/databases:/data:ro \
+  ghcr.io/aunali321/metadata-api:latest \
+  -db /data/spotify_clean.sqlite3
+```
+
+### Docker Compose (TrueNAS/Production)
+
+```bash
+# Edit docker-compose.yml and set your database path
+# Change: /path/to/your/databases -> your actual path
+
+docker-compose up -d
+```
+
+The compose file includes:
+- Auto-restart policy
+- Health checks
+- Read-only database mounts
+- Port mapping (8080:8080)
+
+### Building Locally
+
 ```bash
 # Build
 docker build -t metadata-api .
