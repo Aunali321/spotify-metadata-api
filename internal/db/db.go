@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 
 	"metadata-api/internal/models"
 
@@ -19,20 +20,23 @@ type DB struct {
 }
 
 func Open(dbPath string) (*DB, error) {
-	main, err := sql.Open("sqlite", dbPath+"?mode=ro&_journal_mode=off")
+	// Conservative PRAGMAs for NAS: 64MB cache, 1GB mmap
+	pragmas := "?mode=ro&_journal_mode=off&_cache_size=-65536&_mmap_size=1073741824&_query_only=true"
+
+	main, err := sql.Open("sqlite", dbPath+pragmas)
 	if err != nil {
 		return nil, fmt.Errorf("open main db: %w", err)
 	}
-	main.SetMaxOpenConns(4)
+	main.SetMaxOpenConns(8)
 
 	dir := filepath.Dir(dbPath)
 	trackFilesPath := filepath.Join(dir, "spotify_clean_track_files.sqlite3")
-	trackFiles, err := sql.Open("sqlite", trackFilesPath+"?mode=ro&_journal_mode=off")
+	trackFiles, err := sql.Open("sqlite", trackFilesPath+pragmas)
 	if err != nil {
 		main.Close()
 		return nil, fmt.Errorf("open track_files db: %w", err)
 	}
-	trackFiles.SetMaxOpenConns(4)
+	trackFiles.SetMaxOpenConns(8)
 
 	return &DB{main: main, trackFiles: trackFiles}, nil
 }
@@ -486,18 +490,418 @@ func (d *DB) BatchLookupAlbums(ctx context.Context, ids []string) (map[string]*m
 }
 
 func (d *DB) BatchLookupISRCs(ctx context.Context, isrcs []string) (map[string][]models.Track, error) {
-	result := make(map[string][]models.Track)
+	if len(isrcs) == 0 {
+		return make(map[string][]models.Track), nil
+	}
 
-	for _, isrc := range isrcs {
-		tracks, err := d.LookupISRC(ctx, isrc)
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(isrcs))
+	args := make([]interface{}, len(isrcs))
+	for i, isrc := range isrcs {
+		placeholders[i] = "?"
+		args[i] = isrc
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	// 1. Fetch all tracks + albums in one query
+	query := fmt.Sprintf(`
+		SELECT t.id, t.name, t.external_id_isrc, t.duration_ms, t.explicit,
+		       t.track_number, t.disc_number, t.popularity, t.preview_url, t.rowid,
+		       a.id, a.name, a.album_type, a.label, a.release_date, a.release_date_precision,
+		       a.external_id_upc, a.total_tracks, a.copyright_c, a.copyright_p, a.rowid
+		FROM tracks t
+		JOIN albums a ON t.album_rowid = a.rowid
+		WHERE t.external_id_isrc IN (%s)
+		ORDER BY t.external_id_isrc, t.popularity DESC
+	`, inClause)
+
+	rows, err := d.main.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("batch query isrcs: %w", err)
+	}
+	defer rows.Close()
+
+	type trackInfo struct {
+		track      models.Track
+		albumRowID int64
+		trackRowID int64
+	}
+
+	var trackInfos []trackInfo
+	albumRowIDs := make(map[int64]bool)
+	trackIDs := make([]string, 0)
+
+	for rows.Next() {
+		var t models.Track
+		var alb models.Album
+		var isrcNull, upcNull, copyCNull, copyPNull, previewNull sql.NullString
+		var albumRowID, trackRowID int64
+
+		err := rows.Scan(
+			&t.ID, &t.Name, &isrcNull, &t.DurationMs, &t.Explicit,
+			&t.TrackNum, &t.DiscNum, &t.Popularity, &previewNull, &trackRowID,
+			&alb.ID, &alb.Name, &alb.Type, &alb.Label, &alb.ReleaseDate, &alb.ReleaseDatePrecision,
+			&upcNull, &alb.TotalTracks, &copyCNull, &copyPNull, &albumRowID,
+		)
 		if err != nil {
-			slog.Error("batch lookup isrc", "isrc", isrc, "err", err)
-			continue
+			return nil, fmt.Errorf("scan track: %w", err)
 		}
-		if len(tracks) > 0 {
-			result[isrc] = tracks
+
+		t.ISRC = isrcNull.String
+		t.PreviewURL = previewNull.String
+		alb.UPC = upcNull.String
+		alb.CopyrightC = copyCNull.String
+		alb.CopyrightP = copyPNull.String
+		t.Album = &alb
+
+		trackInfos = append(trackInfos, trackInfo{track: t, albumRowID: albumRowID, trackRowID: trackRowID})
+		albumRowIDs[albumRowID] = true
+		trackIDs = append(trackIDs, t.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(trackInfos) == 0 {
+		return make(map[string][]models.Track), nil
+	}
+
+	// 2. Batch fetch album images
+	albumImages, err := d.batchGetAlbumImages(ctx, albumRowIDs)
+	if err != nil {
+		slog.Error("batch get album images", "err", err)
+	}
+
+	// 3. Batch fetch album artists (and their artist rowids)
+	albumArtists, artistRowIDs, err := d.batchGetAlbumArtists(ctx, albumRowIDs)
+	if err != nil {
+		slog.Error("batch get album artists", "err", err)
+	}
+
+	// 4. Batch fetch track artists (and their artist rowids)
+	trackArtists, trackArtistRowIDs, err := d.batchGetTrackArtists(ctx, trackIDs)
+	if err != nil {
+		slog.Error("batch get track artists", "err", err)
+	}
+
+	// Merge artist rowids
+	for rowid := range trackArtistRowIDs {
+		artistRowIDs[rowid] = true
+	}
+
+	// 5. Batch fetch artist genres and images
+	artistGenres, err := d.batchGetArtistGenres(ctx, artistRowIDs)
+	if err != nil {
+		slog.Error("batch get artist genres", "err", err)
+	}
+	artistImages, err := d.batchGetArtistImages(ctx, artistRowIDs)
+	if err != nil {
+		slog.Error("batch get artist images", "err", err)
+	}
+
+	// 6. Batch fetch track_files enrichment
+	trackFilesData, err := d.batchEnrichTrackFiles(ctx, trackIDs)
+	if err != nil {
+		slog.Error("batch enrich track files", "err", err)
+	}
+
+	// Assemble results
+	result := make(map[string][]models.Track)
+	for i := range trackInfos {
+		ti := &trackInfos[i]
+
+		// Attach album images
+		ti.track.Album.Images = albumImages[ti.albumRowID]
+
+		// Attach album artists with genres/images
+		if artists, ok := albumArtists[ti.albumRowID]; ok {
+			for j := range artists {
+				artists[j].Genres = artistGenres[artists[j].rowid]
+				artists[j].Images = artistImages[artists[j].rowid]
+			}
+			ti.track.Album.Artists = toArtists(artists)
 		}
+
+		// Attach track artists with genres/images
+		if artists, ok := trackArtists[ti.track.ID]; ok {
+			for j := range artists {
+				artists[j].Genres = artistGenres[artists[j].rowid]
+				artists[j].Images = artistImages[artists[j].rowid]
+			}
+			ti.track.Artists = toArtists(artists)
+		}
+
+		// Attach track_files enrichment
+		if tf, ok := trackFilesData[ti.track.ID]; ok {
+			ti.track.HasLyrics = tf.HasLyrics
+			ti.track.OriginalTitle = tf.OriginalTitle
+			ti.track.VersionTitle = tf.VersionTitle
+			ti.track.Languages = tf.Languages
+			ti.track.ArtistRoles = tf.ArtistRoles
+		}
+
+		result[ti.track.ISRC] = append(result[ti.track.ISRC], ti.track)
 	}
 
 	return result, nil
+}
+
+// artistWithRowID holds artist data plus rowid for later lookups
+type artistWithRowID struct {
+	models.Artist
+	rowid int64
+}
+
+func toArtists(awrs []artistWithRowID) []models.Artist {
+	artists := make([]models.Artist, len(awrs))
+	for i, a := range awrs {
+		artists[i] = a.Artist
+	}
+	return artists
+}
+
+func (d *DB) batchGetAlbumImages(ctx context.Context, albumRowIDs map[int64]bool) (map[int64][]models.Image, error) {
+	if len(albumRowIDs) == 0 {
+		return make(map[int64][]models.Image), nil
+	}
+
+	placeholders := make([]string, 0, len(albumRowIDs))
+	args := make([]interface{}, 0, len(albumRowIDs))
+	for rowid := range albumRowIDs {
+		placeholders = append(placeholders, "?")
+		args = append(args, rowid)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT DISTINCT album_rowid, url, width, height FROM album_images
+		WHERE album_rowid IN (%s) ORDER BY album_rowid, width DESC
+	`, strings.Join(placeholders, ","))
+
+	rows, err := d.main.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]models.Image)
+	for rows.Next() {
+		var rowid int64
+		var img models.Image
+		if err := rows.Scan(&rowid, &img.URL, &img.Width, &img.Height); err != nil {
+			return nil, err
+		}
+		result[rowid] = append(result[rowid], img)
+	}
+	return result, rows.Err()
+}
+
+func (d *DB) batchGetAlbumArtists(ctx context.Context, albumRowIDs map[int64]bool) (map[int64][]artistWithRowID, map[int64]bool, error) {
+	if len(albumRowIDs) == 0 {
+		return make(map[int64][]artistWithRowID), make(map[int64]bool), nil
+	}
+
+	placeholders := make([]string, 0, len(albumRowIDs))
+	args := make([]interface{}, 0, len(albumRowIDs))
+	for rowid := range albumRowIDs {
+		placeholders = append(placeholders, "?")
+		args = append(args, rowid)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT aa.album_rowid, a.id, a.name, a.followers_total, a.popularity, a.rowid, MIN(aa.index_in_album) as idx
+		FROM artists a
+		JOIN artist_albums aa ON a.rowid = aa.artist_rowid
+		WHERE aa.album_rowid IN (%s) AND aa.index_in_album IS NOT NULL
+		GROUP BY aa.album_rowid, a.id
+		ORDER BY aa.album_rowid, idx
+	`, strings.Join(placeholders, ","))
+
+	rows, err := d.main.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]artistWithRowID)
+	artistRowIDs := make(map[int64]bool)
+	for rows.Next() {
+		var albumRowID int64
+		var a artistWithRowID
+		var idx int
+		if err := rows.Scan(&albumRowID, &a.ID, &a.Name, &a.Followers, &a.Popularity, &a.rowid, &idx); err != nil {
+			return nil, nil, err
+		}
+		result[albumRowID] = append(result[albumRowID], a)
+		artistRowIDs[a.rowid] = true
+	}
+	return result, artistRowIDs, rows.Err()
+}
+
+func (d *DB) batchGetTrackArtists(ctx context.Context, trackIDs []string) (map[string][]artistWithRowID, map[int64]bool, error) {
+	if len(trackIDs) == 0 {
+		return make(map[string][]artistWithRowID), make(map[int64]bool), nil
+	}
+
+	placeholders := make([]string, len(trackIDs))
+	args := make([]interface{}, len(trackIDs))
+	for i, id := range trackIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT t.id, a.id, a.name, a.followers_total, a.popularity, a.rowid
+		FROM artists a
+		JOIN track_artists ta ON a.rowid = ta.artist_rowid
+		JOIN tracks t ON ta.track_rowid = t.rowid
+		WHERE t.id IN (%s)
+	`, strings.Join(placeholders, ","))
+
+	rows, err := d.main.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]artistWithRowID)
+	artistRowIDs := make(map[int64]bool)
+	for rows.Next() {
+		var trackID string
+		var a artistWithRowID
+		if err := rows.Scan(&trackID, &a.ID, &a.Name, &a.Followers, &a.Popularity, &a.rowid); err != nil {
+			return nil, nil, err
+		}
+		result[trackID] = append(result[trackID], a)
+		artistRowIDs[a.rowid] = true
+	}
+	return result, artistRowIDs, rows.Err()
+}
+
+func (d *DB) batchGetArtistGenres(ctx context.Context, artistRowIDs map[int64]bool) (map[int64][]string, error) {
+	if len(artistRowIDs) == 0 {
+		return make(map[int64][]string), nil
+	}
+
+	placeholders := make([]string, 0, len(artistRowIDs))
+	args := make([]interface{}, 0, len(artistRowIDs))
+	for rowid := range artistRowIDs {
+		placeholders = append(placeholders, "?")
+		args = append(args, rowid)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT artist_rowid, genre FROM artist_genres WHERE artist_rowid IN (%s)
+	`, strings.Join(placeholders, ","))
+
+	rows, err := d.main.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]string)
+	for rows.Next() {
+		var rowid int64
+		var genre string
+		if err := rows.Scan(&rowid, &genre); err != nil {
+			return nil, err
+		}
+		result[rowid] = append(result[rowid], genre)
+	}
+	return result, rows.Err()
+}
+
+func (d *DB) batchGetArtistImages(ctx context.Context, artistRowIDs map[int64]bool) (map[int64][]models.Image, error) {
+	if len(artistRowIDs) == 0 {
+		return make(map[int64][]models.Image), nil
+	}
+
+	placeholders := make([]string, 0, len(artistRowIDs))
+	args := make([]interface{}, 0, len(artistRowIDs))
+	for rowid := range artistRowIDs {
+		placeholders = append(placeholders, "?")
+		args = append(args, rowid)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT artist_rowid, url, width, height FROM artist_images
+		WHERE artist_rowid IN (%s) ORDER BY artist_rowid, width DESC
+	`, strings.Join(placeholders, ","))
+
+	rows, err := d.main.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]models.Image)
+	for rows.Next() {
+		var rowid int64
+		var img models.Image
+		if err := rows.Scan(&rowid, &img.URL, &img.Width, &img.Height); err != nil {
+			return nil, err
+		}
+		result[rowid] = append(result[rowid], img)
+	}
+	return result, rows.Err()
+}
+
+type trackFileData struct {
+	HasLyrics     *bool
+	OriginalTitle string
+	VersionTitle  string
+	Languages     []string
+	ArtistRoles   []string
+}
+
+func (d *DB) batchEnrichTrackFiles(ctx context.Context, trackIDs []string) (map[string]trackFileData, error) {
+	if len(trackIDs) == 0 {
+		return make(map[string]trackFileData), nil
+	}
+
+	placeholders := make([]string, len(trackIDs))
+	args := make([]interface{}, len(trackIDs))
+	for i, id := range trackIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT track_id, has_lyrics, original_title, version_title, language_of_performance, artist_roles
+		FROM track_files WHERE track_id IN (%s)
+	`, strings.Join(placeholders, ","))
+
+	rows, err := d.trackFiles.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]trackFileData)
+	for rows.Next() {
+		var trackID string
+		var hasLyrics sql.NullInt64
+		var origTitle, versionTitle, langJSON, rolesJSON sql.NullString
+
+		if err := rows.Scan(&trackID, &hasLyrics, &origTitle, &versionTitle, &langJSON, &rolesJSON); err != nil {
+			return nil, err
+		}
+
+		tf := trackFileData{
+			OriginalTitle: origTitle.String,
+			VersionTitle:  versionTitle.String,
+		}
+		if hasLyrics.Valid {
+			val := hasLyrics.Int64 == 1
+			tf.HasLyrics = &val
+		}
+		if langJSON.String != "" {
+			json.Unmarshal([]byte(langJSON.String), &tf.Languages)
+		}
+		if rolesJSON.String != "" {
+			json.Unmarshal([]byte(rolesJSON.String), &tf.ArtistRoles)
+		}
+		result[trackID] = tf
+	}
+	return result, rows.Err()
 }
