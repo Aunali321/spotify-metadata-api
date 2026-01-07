@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: Spotify Metadata API
+  title: Music Metadata API
   description: |
-    Metadata enrichment API backed by Anna's Archive Spotify database (256M tracks)
+    Metadata enrichment API backed by Music database.
 
     ## Rate Limits
 
@@ -41,19 +41,19 @@ paths:
                   type: array
                   items:
                     type: string
-                  description: Spotify track IDs to lookup
+                  description: track IDs to lookup
                   example: ["2plbrEY59IikOBgBGLjaoe", "3n3Ppam7vgaVa1iaRUc9Lp"]
                 artists:
                   type: array
                   items:
                     type: string
-                  description: Spotify artist IDs to lookup
+                  description: artist IDs to lookup
                   example: ["1HY2Jd0NmPuamShAr6KMms"]
                 albums:
                   type: array
                   items:
                     type: string
-                  description: Spotify album IDs to lookup
+                  description: album IDs to lookup
                   example: ["10FLjwfpbxLmW8c25Xyc2N"]
                 isrcs:
                   type: array
@@ -125,7 +125,7 @@ paths:
 
   /lookup/track/{id}:
     get:
-      summary: Lookup track by Spotify ID
+      summary: Lookup track by ID
       tags: [Lookup]
       parameters:
         - name: id
@@ -146,7 +146,7 @@ paths:
 
   /lookup/artist/{id}:
     get:
-      summary: Lookup artist by Spotify ID
+      summary: Lookup artist by ID
       tags: [Lookup]
       parameters:
         - name: id
@@ -167,7 +167,7 @@ paths:
 
   /lookup/album/{id}:
     get:
-      summary: Lookup album by Spotify ID
+      summary: Lookup album by ID
       tags: [Lookup]
       parameters:
         - name: id

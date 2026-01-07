@@ -50,9 +50,9 @@ type Track struct {
 }
 
 type BatchLookupRequest struct {
-	Tracks  []string `json:"tracks,omitempty"`  // Spotify track IDs
-	Artists []string `json:"artists,omitempty"` // Spotify artist IDs
-	Albums  []string `json:"albums,omitempty"`  // Spotify album IDs
+	Tracks  []string `json:"tracks,omitempty"`  // track IDs
+	Artists []string `json:"artists,omitempty"` // artist IDs
+	Albums  []string `json:"albums,omitempty"`  // album IDs
 	ISRCs   []string `json:"isrcs,omitempty"`   // ISRCs
 }
 

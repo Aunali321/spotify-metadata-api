@@ -17,7 +17,7 @@ import (
 func main() {
 	var (
 		addr   = flag.String("addr", ":8080", "listen address")
-		dbPath = flag.String("db", "", "path to spotify_clean.sqlite3")
+		dbPath = flag.String("db", "", "path to main_database.sqlite3")
 	)
 	flag.Parse()
 

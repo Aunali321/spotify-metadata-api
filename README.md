@@ -1,19 +1,23 @@
-# Spotify Metadata API
+# Music Metadata API
 
 A metadata enrichment API for music servers, backed by SQLite databases containing 256 million tracks.
+
+## Disclaimer
+
+**This project is not affiliated with, endorsed by, or connected to Spotify AB or any other music streaming service.** This is independent open-source software that provides API infrastructure for querying music metadata databases.
 
 ## Warning
 
 **This repository does not include any databases or copyrighted data.** You must obtain the SQLite databases separately. This project only provides the API server code to query existing databases.
 
-The author(s) of this project are not responsible for how you obtain or use the underlying data. This software is provided "as is" without warranty of any kind.
+The author(s) of this project are not responsible for how you obtain or use the underlying data. Users are solely responsible for ensuring their use of any databases complies with applicable laws and terms of service. This software is provided "as is" without warranty of any kind.
 
 ## Features
 
 - **Batch API** - Lookup up to 400 entities in a single request
 - **Generous rate limits** - 100 req/s with burst capacity of 200
 - ISRC lookup (primary identifier for recordings)
-- Track/Artist/Album lookup by Spotify ID
+- Track/Artist/Album lookup by ID
 - Search by name
 - Full metadata: images, genres, labels, copyright, release dates
 - OpenAPI 3.1 spec with Swagger UI
@@ -21,9 +25,9 @@ The author(s) of this project are not responsible for how you obtain or use the 
 ## Requirements
 
 - Go 1.24+
-- SQLite databases:
-  - `spotify_clean.sqlite3` (~117GB)
-  - `spotify_clean_track_files.sqlite3` (~99GB)
+- SQLite databases (two files required):
+  - Main metadata database (~117GB)
+  - Track files database (~99GB)
 
 ## Installation
 
@@ -34,13 +38,13 @@ go build -o metadata-api ./cmd/server
 ## Usage
 
 ```bash
-./metadata-api -db /path/to/spotify_clean.sqlite3
+./metadata-api -db /path/to/main_database.sqlite3
 ```
 
-The server expects `spotify_clean_track_files.sqlite3` to be in the same directory as the main database.
+The server expects both database files to be in the same directory.
 
 **Flags:**
-- `-db` - Path to `spotify_clean.sqlite3` (required)
+- `-db` - Path to main database file (required)
 - `-addr` - Listen address (default: `:8080`)
 
 ## Docker
@@ -50,11 +54,11 @@ The server expects `spotify_clean_track_files.sqlite3` to be in the same directo
 ```bash
 docker run -p 8080:8080 \
   -v /path/to/databases:/data:ro \
-  ghcr.io/aunali321/metadata-api:latest \
-  -db /data/spotify_clean.sqlite3
+  ghcr.io/aunali321/music-metadata-api:latest \
+  -db /data/main_database.sqlite3
 ```
 
-### Docker Compose (TrueNAS/Production)
+### Docker Compose (Production)
 
 ```bash
 # Edit docker-compose.yml and set your database path
@@ -76,7 +80,7 @@ The compose file includes:
 docker build -t metadata-api .
 
 # Run (mount your database directory)
-docker run -p 8080:8080 -v /path/to/databases:/data metadata-api -db /data/spotify_clean.sqlite3
+docker run -p 8080:8080 -v /path/to/databases:/data metadata-api -db /data/main_database.sqlite3
 ```
 
 ## API Endpoints
@@ -85,9 +89,9 @@ docker run -p 8080:8080 -v /path/to/databases:/data metadata-api -db /data/spoti
 |----------|-------------|
 | `POST /batch/lookup` | **Batch lookup multiple entities** |
 | `GET /lookup/isrc/{isrc}` | Lookup tracks by ISRC |
-| `GET /lookup/track/{id}` | Lookup track by Spotify ID |
-| `GET /lookup/artist/{id}` | Lookup artist by Spotify ID |
-| `GET /lookup/album/{id}` | Lookup album by Spotify ID |
+| `GET /lookup/track/{id}` | Lookup track by ID |
+| `GET /lookup/artist/{id}` | Lookup artist by ID |
+| `GET /lookup/album/{id}` | Lookup album by ID |
 | `GET /lookup/album/{id}/tracks` | Get all tracks in album |
 | `GET /search/track?q=&limit=` | Search tracks by name (case-insensitive) |
 | `GET /search/artist?q=&limit=` | Search artists by name (case-insensitive) |

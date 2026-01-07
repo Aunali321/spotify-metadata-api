@@ -59,7 +59,7 @@ func (h *Handler) swaggerUI(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`<!DOCTYPE html>
 <html>
 <head>
-  <title>Spotify Metadata API</title>
+  <title>Music Metadata API</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
   <style>
     body { margin: 0; }

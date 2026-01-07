@@ -30,7 +30,7 @@ func Open(dbPath string) (*DB, error) {
 	main.SetMaxOpenConns(8)
 
 	dir := filepath.Dir(dbPath)
-	trackFilesPath := filepath.Join(dir, "spotify_clean_track_files.sqlite3")
+	trackFilesPath := filepath.Join(dir, "track_files.sqlite3")
 	trackFiles, err := sql.Open("sqlite", trackFilesPath+pragmas)
 	if err != nil {
 		main.Close()

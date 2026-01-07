@@ -1,6 +1,6 @@
 services:
   metadata-api:
-    image: ghcr.io/aunali321/spotify-metadata-api:latest
+    image: ghcr.io/aunali321/music-metadata-api:latest
     # build: .  # Uncomment to build locally instead
     container_name: metadata-api
     restart: unless-stopped
@@ -9,7 +9,7 @@ services:
     volumes:
       # Mount directory containing your SQLite databases
       - /path/to/your/databases:/data:ro
-    command: -db /data/spotify_clean.sqlite3 -addr :8080
+    command: -db /data/main_database.sqlite3 -addr :8080
     environment:
       # Optional: Configure logging level
       - LOG_LEVEL=info
